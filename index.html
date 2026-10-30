@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>PAWZ AR</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PAWZ AR">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="marker.jpg">
 <style>
   :root{--ink:#2b2f6b;--blue:#505fac;--yellow:#f4ee8a;--paper:#fffdf4}
   html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Noto Sans KR",sans-serif}
@@ -63,19 +68,35 @@ video.muted = true; video.playsInline = true; video.loop = LOOP;
 video.setAttribute('playsinline', ''); video.setAttribute('webkit-playsinline', '');
 video.preload = 'auto'; video.crossOrigin = 'anonymous';
 
-goBtn.addEventListener('click', async () => {
+let started = false;
+async function launch() {
+  if (started) return;
   goBtn.disabled = true; goBtn.textContent = '카메라 여는 중…';
-  // iOS: 사용자 제스처 안에서 영상 재생 권한 확보
+  // iOS: 영상 재생 권한 확보 (음소거 영상이라 대부분 제스처 없이도 됨)
   try { await video.play(); video.pause(); video.currentTime = 0; } catch (e) {}
   try {
     await startAR();
+    started = true;
     startEl.style.display = 'none';
     hint.style.display = 'block';
+    keepAwake();
   } catch (e) {
     console.error(e);
-    goBtn.disabled = false; goBtn.textContent = '다시 시도';
+    goBtn.disabled = false; goBtn.textContent = 'AR 시작';
     errEl.textContent = '카메라를 열 수 없어요. 브라우저 카메라 권한을 확인해주세요. (카카오톡/인스타 앱 내 브라우저라면 Safari·Chrome에서 열어주세요)';
   }
+}
+goBtn.addEventListener('click', launch);
+// 전시용: 페이지를 열면 바로 카메라 시작 (안 되면 버튼으로)
+launch();
+
+// 전시용: 화면 꺼짐 방지
+let wakeLock = null;
+async function keepAwake() {
+  try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && started) keepAwake();
 });
 
 async function startAR() {
