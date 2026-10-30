@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>PAWZ AR</title>
+<style>
+  :root{--ink:#2b2f6b;--blue:#505fac;--yellow:#f4ee8a;--paper:#fffdf4}
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Noto Sans KR",sans-serif}
+  #ar{position:fixed;inset:0}
+  #start{position:fixed;inset:0;z-index:10;background:var(--yellow);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;box-sizing:border-box;text-align:center;color:var(--ink)}
+  #start img{width:min(78vw,420px);filter:drop-shadow(0 6px 18px rgba(43,47,107,.18))}
+  #start h1{margin:0;font-size:22px;letter-spacing:-.02em}
+  #start p{margin:0;font-size:15px;line-height:1.5;opacity:.8}
+  #go{appearance:none;border:0;border-radius:999px;background:var(--blue);color:#fff;font-size:17px;font-weight:700;padding:16px 40px;cursor:pointer}
+  #go:disabled{opacity:.5}
+  #hint{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:5;background:rgba(255,253,244,.92);color:var(--ink);font-size:14px;padding:10px 18px;border-radius:999px;display:none;white-space:nowrap}
+  #err{color:#b3261e;font-size:14px}
+  /* MindAR 기본 스캔 UI 숨김 (자체 힌트 사용) */
+  .mindar-ui-overlay.mindar-ui-scanning{display:none!important}
+</style>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+  "mindar-image-three":"https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+}}
+</script>
+</head>
+<body>
+<div id="ar"></div>
+<div id="start">
+  <img src="marker.jpg" alt="마커 스티커">
+  <h1>PAWZ AR</h1>
+  <p>버튼을 누르고 카메라를 허용한 뒤<br>이 스티커를 화면에 비춰주세요.</p>
+  <button id="go">AR 시작</button>
+  <div id="err"></div>
+</div>
+<div id="hint">스티커를 화면에 비춰주세요</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { MindARThree } from 'mindar-image-three';
+
+// ── 영상 ↔ 마커 정렬값 ──────────────────────────────
+// 영상(1920×1560) 안에서 스티커 외곽선이 차지하는 영역: x 154–1835, y 40–1331
+// MindAR 앵커 좌표계에서 마커 폭 = 1
+const VW = 1920, VH = 1560, SX0 = 154, SX1 = 1835, SY0 = 40, SY1 = 1331;
+const SW = SX1 - SX0 + 1;
+const PLANE_W = VW / SW, PLANE_H = VH / SW;
+const OFF_X = (VW / 2 - (SX0 + SX1) / 2) / SW;
+const OFF_Y = ((SY0 + SY1) / 2 - VH / 2) / SW;
+const LOOP = false;   // true로 바꾸면 반복 재생
+
+const startEl = document.getElementById('start');
+const goBtn = document.getElementById('go');
+const hint = document.getElementById('hint');
+const errEl = document.getElementById('err');
+
+const video = document.createElement('video');
+video.src = 'pawz.mp4';
+video.muted = true; video.playsInline = true; video.loop = LOOP;
+video.setAttribute('playsinline', ''); video.setAttribute('webkit-playsinline', '');
+video.preload = 'auto'; video.crossOrigin = 'anonymous';
+
+goBtn.addEventListener('click', async () => {
+  goBtn.disabled = true; goBtn.textContent = '카메라 여는 중…';
+  // iOS: 사용자 제스처 안에서 영상 재생 권한 확보
+  try { await video.play(); video.pause(); video.currentTime = 0; } catch (e) {}
+  try {
+    await startAR();
+    startEl.style.display = 'none';
+    hint.style.display = 'block';
+  } catch (e) {
+    console.error(e);
+    goBtn.disabled = false; goBtn.textContent = '다시 시도';
+    errEl.textContent = '카메라를 열 수 없어요. 브라우저 카메라 권한을 확인해주세요. (카카오톡/인스타 앱 내 브라우저라면 Safari·Chrome에서 열어주세요)';
+  }
+});
+
+async function startAR() {
+  const mindar = new MindARThree({
+    container: document.getElementById('ar'),
+    imageTargetSrc: './targets.mind',
+    uiScanning: 'no', uiLoading: 'yes', uiError: 'yes',
+    filterMinCF: 0.0001, filterBeta: 0.001,   // 떨림 완화
+  });
+  const { renderer, scene, camera } = mindar;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  const vTex = new THREE.VideoTexture(video);
+  vTex.colorSpace = THREE.NoColorSpace;
+  vTex.minFilter = THREE.LinearFilter; vTex.generateMipmaps = false;
+  const mTex = new THREE.TextureLoader().load('mask.png');
+  mTex.colorSpace = THREE.NoColorSpace;
+
+  // 영상의 검은 바깥 배경을 투명 처리:
+  //  · 패키지(노란 면) 영역은 정적 마스크로 항상 보이게
+  //  · 스티커가 넘겨지며 바깥으로 삐져나오는 부분은 밝기 키로 보이게
+  const material = new THREE.ShaderMaterial({
+    uniforms: { map: { value: vTex }, mask: { value: mTex } },
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `
+      uniform sampler2D map; uniform sampler2D mask; varying vec2 vUv;
+      void main(){
+        vec3 c = texture2D(map, vUv).rgb;
+        float m = texture2D(mask, vUv).r;
+        float k = smoothstep(0.08, 0.30, max(c.r, max(c.g, c.b)));
+        float a = max(m, k);
+        if (a < 0.01) discard;
+        gl_FragColor = vec4(c, a);
+      }`,
+    transparent: true, depthWrite: false,
+  });
+
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(PLANE_W, PLANE_H), material);
+  plane.position.set(OFF_X, OFF_Y, 0);
+
+  const anchor = mindar.addAnchor(0);
+  anchor.group.add(plane);
+
+  let wasLost = true;
+  anchor.onTargetFound = () => {
+    hint.style.display = 'none';
+    if (wasLost && (video.ended || !LOOP)) video.currentTime = 0;
+    wasLost = false;
+    video.play().catch(() => {});
+  };
+  anchor.onTargetLost = () => {
+    hint.style.display = 'block';
+    video.pause();
+    wasLost = true;
+  };
+
+  await mindar.start();
+  renderer.setAnimationLoop(() => renderer.render(scene, camera));
+}
+</script>
+</body>
+</html>
