@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>PAWZ AR</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #0d0d1a;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    /* A-Frame 씬 */
+    #ar-wrap {
+      position: fixed; inset: 0;
+      display: none;
+    }
+    #ar-wrap a-scene {
+      width: 100%; height: 100%;
+    }
+
+    /* 시작 화면 */
+    #start-screen {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      z-index: 200; color: white; padding: 24px; text-align: center;
+    }
+    .logo { font-size: 64px; margin-bottom: 12px; animation: float 3s ease-in-out infinite; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+    #start-screen h1 { font-size: 32px; font-weight: 800; letter-spacing: 2px; margin-bottom: 10px; }
+    #start-screen p  { font-size: 15px; opacity: .7; line-height: 1.7; max-width: 280px; }
+    #start-btn {
+      margin-top: 36px; padding: 16px 48px;
+      border: none; border-radius: 50px;
+      background: linear-gradient(135deg, #e94560, #c93154);
+      color: white; font-size: 18px; font-weight: 700; cursor: pointer;
+      box-shadow: 0 6px 24px rgba(233,69,96,.45);
+      transition: transform .15s, box-shadow .15s;
+    }
+    #start-btn:active { transform: scale(.96); box-shadow: 0 3px 12px rgba(233,69,96,.45); }
+    .notice { margin-top: 20px; font-size: 12px; opacity: .4; line-height: 1.6; }
+
+    /* 로딩 화면 */
+    #loading-screen {
+      position: fixed; inset: 0;
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,.92); z-index: 200; color: white; text-align: center; padding: 24px;
+    }
+    .spinner {
+      width: 52px; height: 52px;
+      border: 4px solid rgba(255,255,255,.15); border-top-color: #e94560;
+      border-radius: 50%; animation: spin .75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-msg  { margin-top: 18px; font-size: 15px; opacity: .8; }
+    #loading-sub  { margin-top:  8px; font-size: 13px; opacity: .45; }
+
+    /* 오류 화면 */
+    #error-screen {
+      position: fixed; inset: 0;
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,.95); z-index: 200; color: white;
+      padding: 32px; text-align: center;
+    }
+    #err-icon  { font-size: 52px; margin-bottom: 16px; }
+    #err-title { font-size: 20px; margin-bottom: 12px; }
+    #err-msg   { font-size: 14px; opacity: .7; line-height: 1.8; white-space: pre-line; max-width: 320px; }
+    .retry-btn {
+      margin-top: 28px; padding: 12px 36px; border-radius: 28px;
+      border: 1.5px solid rgba(255,255,255,.35);
+      background: transparent; color: white; font-size: 16px; cursor: pointer;
+    }
+
+    /* AR HUD */
+    #hud-status {
+      position: fixed;
+      top: max(env(safe-area-inset-top, 0px), 16px);
+      left: 50%; transform: translateX(-50%);
+      padding: 8px 22px; border-radius: 24px;
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      color: white; font-size: 14px; font-weight: 600;
+      z-index: 100; opacity: 0; transition: opacity .4s;
+      pointer-events: none; white-space: nowrap;
+    }
+    #hud-status.on { opacity: 1; }
+
+    /* 스캔 안내 */
+    #scan-hint {
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
+      left: 50%; transform: translateX(-50%);
+      padding: 12px 28px; border-radius: 28px;
+      background: rgba(0,0,0,.6);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      color: white; font-size: 14px; z-index: 100;
+      display: none; text-align: center; max-width: 280px;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:.85} 50%{opacity:1} }
+  </style>
+
+  <!-- ① A-Frame (로컬, UMD) -->
+  <script src="./aframe.min.js"></script>
+  <!-- ② MindAR A-Frame (로컬, 완전 자급자족 IIFE — model.weights 내장) -->
+  <script src="./mindar-image-aframe.prod.js"></script>
+</head>
+<body>
+
+<!-- 시작 화면 -->
+<div id="start-screen">
+  <div class="logo">🐾</div>
+  <h1>PAWZ AR</h1>
+  <p>마커 이미지를 카메라에 비추면<br>AR 영상이 재생됩니다</p>
+  <button id="start-btn" onclick="startAR()">AR 시작하기</button>
+  <p class="notice">카메라 권한이 필요합니다</p>
+</div>
+
+<!-- 로딩 화면 -->
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div id="loading-msg">초기화 중...</div>
+  <div id="loading-sub"></div>
+</div>
+
+<!-- 오류 화면 -->
+<div id="error-screen">
+  <div id="err-icon">⚠️</div>
+  <h2 id="err-title">오류 발생</h2>
+  <p  id="err-msg"></p>
+  <button class="retry-btn" onclick="location.reload()">다시 시도</button>
+</div>
+
+<!-- AR HUD -->
+<div id="hud-status"></div>
+<div id="scan-hint">📷 마커 이미지를 카메라에 비춰주세요</div>
+
+<!-- AR 씬 컨테이너 — a-scene은 버튼 클릭 후 동적 생성 -->
+<div id="ar-wrap"></div>
+
+<!-- 영상 (씬과 무관하게 관리) -->
+<video id="ar-video"
+  src="./영상1.mp4"
+  loop muted playsinline webkit-playsinline
+  preload="auto"
+  style="display:none">
+</video>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  ▶ UI 헬퍼
+// ═══════════════════════════════════════════════════════════════
+let hudTimer = null;
+
+function showHud(text, autoHide = true) {
+  const el = document.getElementById('hud-status');
+  el.textContent = text;
+  el.classList.add('on');
+  clearTimeout(hudTimer);
+  if (autoHide) hudTimer = setTimeout(() => el.classList.remove('on'), 2500);
+}
+
+function setLoading(msg, sub = '') {
+  document.getElementById('loading-msg').textContent = msg;
+  document.getElementById('loading-sub').textContent = sub;
+}
+
+function showError(err) {
+  console.error('[PAWZ-AR]', err);
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('ar-wrap').style.display        = 'none';
+
+  const icon  = document.getElementById('err-icon');
+  const title = document.getElementById('err-title');
+  const msg   = document.getElementById('err-msg');
+  const e     = (err && err.message) ? err.message : String(err);
+
+  if (err && (err.name === 'NotAllowedError' || /permission|denied/i.test(e))) {
+    icon.textContent  = '📷'; title.textContent = '카메라 권한 필요';
+    msg.textContent   = '카메라 접근이 거부되었습니다.\n\n📱 iPhone Safari\n설정→Safari→카메라→허용\n\n🤖 Android Chrome\n주소창 🔒→카메라→허용\n\n허용 후 새로고침하세요.';
+  } else if (/targets\.mind|fetch|404/i.test(e)) {
+    icon.textContent  = '📁'; title.textContent = 'targets.mind 없음';
+    msg.textContent   = 'compile-marker.html로 targets.mind를 생성 후 이 폴더에 저장하세요.';
+  } else {
+    icon.textContent  = '⚠️'; title.textContent = '초기화 실패';
+    msg.textContent   = e;
+  }
+  document.getElementById('error-screen').style.display = 'flex';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ▶ AR 시작
+// ═══════════════════════════════════════════════════════════════
+async function startAR() {
+  document.getElementById('start-screen').style.display   = 'none';
+  document.getElementById('loading-screen').style.display = 'flex';
+  setLoading('카메라 초기화 중...');
+
+  const videoEl = document.getElementById('ar-video');
+  videoEl.muted = true;
+  videoEl.load();
+
+  try {
+    // a-scene을 동적으로 생성 (페이지 로드 시 A-Frame이 이벤트를 가로채는 것 방지)
+    const wrap = document.getElementById('ar-wrap');
+    wrap.style.display = 'block';
+    wrap.innerHTML = `
+      <a-scene
+        id="ar-scene"
+        mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no; filterMinCF: 0.001; filterBeta: 800; warmupTolerance: 1; missTolerance: 5;"
+        color-space="sRGB"
+        renderer="colorManagement: true; alpha: true;"
+        vr-mode-ui="enabled: false"
+        device-orientation-permission-ui="enabled: false"
+        embedded>
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+        <a-entity id="ar-target" mindar-image-target="targetIndex: 0">
+          <a-entity id="video-mesh-host"></a-entity>
+        </a-entity>
+      </a-scene>`;
+
+    const scene = document.getElementById('ar-scene');
+
+    // A-Frame 씬 로드 대기
+    await new Promise((resolve, reject) => {
+      if (scene.hasLoaded) { resolve(); return; }
+      scene.addEventListener('loaded', resolve, { once: true });
+      setTimeout(() => reject(new Error('씬 로딩 타임아웃 (20s)')), 20000);
+    });
+
+    setLoading('마커 데이터 로딩 중...');
+
+    // MindAR 시작
+    const mindarSystem = scene.systems['mindar-image-system'];
+    await mindarSystem.start();
+
+    // ── Three.js 메시를 직접 생성해서 A-Frame entity에 주입 ──────
+    //    (A-Frame material/geometry 시스템 완전 우회)
+    const THREE = window.THREE;
+
+    const tex = new THREE.VideoTexture(videoEl);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        map      : { value: tex },
+        threshold: { value: 0.01 },
+        softness : { value: 0.02 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+        }`,
+      fragmentShader: `
+        uniform sampler2D map;
+        uniform float threshold;
+        uniform float softness;
+        varying vec2 vUv;
+        void main() {
+          vec4 col = texture2D(map, vUv);
+          // 세 채널 중 가장 높은 값 사용
+          // → 순수 검정(0,0,0)만 제거, 어두운 갈색·남색은 유지
+          float maxCh = max(col.r, max(col.g, col.b));
+          if (maxCh < threshold) discard;
+          float alpha = smoothstep(threshold, threshold + softness, maxCh);
+          gl_FragColor = vec4(col.rgb, col.a * alpha);
+        }`,
+      transparent: true,
+      side       : THREE.DoubleSide,
+      depthWrite : false,
+    });
+
+    // 마커 비율: 1853/2415 ≈ 0.767, 높이 20% 증가 → 0.767 * 1.2 ≈ 0.920
+    const geo  = new THREE.PlaneGeometry(1.2, 0.920);
+    const mesh = new THREE.Mesh(geo, mat);
+    // 아래로 확장되도록 중심을 약간 내림 ((0.920-0.767)/2 ≈ 0.077)
+    mesh.position.set(0, -0.077, 0.001);
+
+    // A-Frame entity에 직접 주입
+    const host = document.getElementById('video-mesh-host');
+    host.setObject3D('mesh', mesh);
+
+    // 텍스처 업데이트 루프 (A-Frame tick 대신 requestAnimationFrame)
+    function updateTex() {
+      tex.needsUpdate = true;
+      requestAnimationFrame(updateTex);
+    }
+    updateTex();
+
+    // ── 마커 이벤트 ──────────────────────────────────────────────
+    document.getElementById('loading-screen').style.display = 'none';
+    document.getElementById('scan-hint').style.display      = 'block';
+
+    const target = document.getElementById('ar-target');
+
+    target.addEventListener('targetFound', () => {
+      document.getElementById('scan-hint').style.display = 'none';
+      showHud('🎯 마커 인식됨');
+      videoEl.play().catch(err => console.warn('[play]', err.message));
+    });
+
+    target.addEventListener('targetLost', () => {
+      videoEl.pause();
+      document.getElementById('hud-status').classList.remove('on');
+      document.getElementById('scan-hint').style.display = 'block';
+    });
+
+  } catch (err) {
+    showError(err);
+  }
+}
+</script>
+</body>
+</html>
