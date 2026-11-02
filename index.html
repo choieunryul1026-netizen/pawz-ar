@@ -28,24 +28,24 @@
     #start-screen {
       position: fixed; inset: 0;
       display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      background: linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-      z-index: 200; color: white; padding: 24px; text-align: center;
+      align-items: center; justify-content: flex-end;
+      background: #f6f088 url('./ui.png') center top / contain no-repeat;
+      z-index: 200;
+      padding-bottom: max(env(safe-area-inset-bottom, 0px), 32px);
     }
-    .logo { font-size: 64px; margin-bottom: 12px; animation: float 3s ease-in-out infinite; }
-    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
-    #start-screen h1 { font-size: 32px; font-weight: 800; letter-spacing: 2px; margin-bottom: 10px; }
-    #start-screen p  { font-size: 15px; opacity: .7; line-height: 1.7; max-width: 280px; }
     #start-btn {
-      margin-top: 36px; padding: 16px 48px;
+      width: calc(100% - 48px);
+      max-width: 340px;
+      padding: 18px;
       border: none; border-radius: 50px;
-      background: linear-gradient(135deg, #e94560, #c93154);
-      color: white; font-size: 18px; font-weight: 700; cursor: pointer;
-      box-shadow: 0 6px 24px rgba(233,69,96,.45);
+      background: #4a5aab;
+      color: white; font-size: 20px; font-weight: 800;
+      cursor: pointer; letter-spacing: 1px;
+      box-shadow: 0 4px 16px rgba(74,90,171,.4);
       transition: transform .15s, box-shadow .15s;
     }
-    #start-btn:active { transform: scale(.96); box-shadow: 0 3px 12px rgba(233,69,96,.45); }
-    .notice { margin-top: 20px; font-size: 12px; opacity: .4; line-height: 1.6; }
+    #start-btn:active { transform: scale(.97); }
+    .notice { display: none; }
 
     /* 로딩 화면 */
     #loading-screen {
@@ -118,11 +118,7 @@
 
 <!-- 시작 화면 -->
 <div id="start-screen">
-  <div class="logo">🐾</div>
-  <h1>PAWZ AR</h1>
-  <p>마커 이미지를 카메라에 비추면<br>AR 영상이 재생됩니다</p>
   <button id="start-btn" onclick="startAR()">AR 시작하기</button>
-  <p class="notice">카메라 권한이 필요합니다</p>
 </div>
 
 <!-- 로딩 화면 -->
