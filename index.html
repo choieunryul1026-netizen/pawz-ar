@@ -186,8 +186,8 @@ function createVideoMesh(THREE, videoEl) {
   const mat = new THREE.ShaderMaterial({
     uniforms: {
       map      : { value: tex },
-      threshold: { value: 0.92 },
-      softness : { value: 0.06 },
+      threshold: { value: 0.01 },
+      softness : { value: 0.02 },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -202,9 +202,9 @@ function createVideoMesh(THREE, videoEl) {
       varying vec2 vUv;
       void main() {
         vec4 col = texture2D(map, vUv);
-        float minCh = min(col.r, min(col.g, col.b));
-        if (minCh > threshold) discard;
-        float alpha = 1.0 - smoothstep(threshold - softness, threshold, minCh);
+        float maxCh = max(col.r, max(col.g, col.b));
+        if (maxCh < threshold) discard;
+        float alpha = smoothstep(threshold, threshold + softness, maxCh);
         gl_FragColor = vec4(col.rgb, col.a * alpha);
       }`,
     transparent: true,
