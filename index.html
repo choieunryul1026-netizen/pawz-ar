@@ -186,8 +186,8 @@ function createVideoMesh(THREE, videoEl) {
   const mat = new THREE.ShaderMaterial({
     uniforms: {
       map      : { value: tex },
-      threshold: { value: 0.01 },
-      softness : { value: 0.02 },
+      threshold: { value: 0.08 },
+      softness : { value: 0.05 },
     },
     vertexShader: `
       varying vec2 vUv;
