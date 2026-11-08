@@ -298,7 +298,7 @@ async function startAR() {
       // 영상 메타데이터 로드 후 메시 생성
       const setupMesh = () => {
         const mesh = createVideoMesh(THREE, videoEl, !!t.whiteBg, t.threshold ?? null);
-        if (t.offsetY) mesh.position.y += t.offsetY;
+        mesh.position.y += (t.offsetY || 0) - 0.08;
         if (t.scale)   mesh.scale.setScalar(t.scale);
         const host = document.getElementById(`video-mesh-host-${i}`);
         host.setObject3D('mesh', mesh);
