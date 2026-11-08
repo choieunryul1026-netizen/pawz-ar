@@ -133,7 +133,7 @@
 // ═══════════════════════════════════════════════════════════════
 const TARGETS = [
   { name: '멍송편',     videoId: 'video-0' },
-  { name: '멍치킨',     videoId: 'video-1', whiteBg: true },
+  { name: '멍치킨',     videoId: 'video-1', threshold: 0.06 },
   { name: '멍샌드위치', videoId: 'video-2' },
   { name: '멍김밥',     videoId: 'video-3', offsetY: -0.03, scale: 1.0 },
 ];
@@ -178,7 +178,7 @@ function showError(err) {
 }
 
 // ── Three.js 메시 생성 ───────────────────────────────────────────
-function createVideoMesh(THREE, videoEl, whiteBg = false) {
+function createVideoMesh(THREE, videoEl, whiteBg = false, threshold = null) {
   const tex = new THREE.VideoTexture(videoEl);
   tex.minFilter = THREE.LinearFilter;
   tex.magFilter = THREE.LinearFilter;
@@ -186,7 +186,7 @@ function createVideoMesh(THREE, videoEl, whiteBg = false) {
   const mat = new THREE.ShaderMaterial({
     uniforms: {
       map      : { value: tex },
-      threshold: { value: whiteBg ? 0.88 : 0.01 },
+      threshold: { value: whiteBg ? 0.88 : (threshold ?? 0.01) },
       softness : { value: whiteBg ? 0.08 : 0.02 },
       whiteBg  : { value: whiteBg ? 1.0 : 0.0 },
     },
@@ -297,7 +297,7 @@ async function startAR() {
 
       // 영상 메타데이터 로드 후 메시 생성
       const setupMesh = () => {
-        const mesh = createVideoMesh(THREE, videoEl, !!t.whiteBg);
+        const mesh = createVideoMesh(THREE, videoEl, !!t.whiteBg, t.threshold ?? null);
         if (t.offsetY) mesh.position.y += t.offsetY;
         if (t.scale)   mesh.scale.setScalar(t.scale);
         const host = document.getElementById(`video-mesh-host-${i}`);
