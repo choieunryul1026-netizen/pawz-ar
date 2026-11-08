@@ -186,8 +186,8 @@ function createVideoMesh(THREE, videoEl) {
   const mat = new THREE.ShaderMaterial({
     uniforms: {
       map      : { value: tex },
-      threshold: { value: 0.01 },
-      softness : { value: 0.02 },
+      threshold: { value: 0.92 },
+      softness : { value: 0.06 },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -202,9 +202,9 @@ function createVideoMesh(THREE, videoEl) {
       varying vec2 vUv;
       void main() {
         vec4 col = texture2D(map, vUv);
-        float maxCh = max(col.r, max(col.g, col.b));
-        if (maxCh < threshold) discard;
-        float alpha = smoothstep(threshold, threshold + softness, maxCh);
+        float minCh = min(col.r, min(col.g, col.b));
+        if (minCh > threshold) discard;
+        float alpha = 1.0 - smoothstep(threshold - softness, threshold, minCh);
         gl_FragColor = vec4(col.rgb, col.a * alpha);
       }`,
     transparent: true,
@@ -212,8 +212,8 @@ function createVideoMesh(THREE, videoEl) {
     depthWrite : false,
   });
 
-  // 영상 비율에 맞춰 plane 크기 계산 (기준 너비 1.2)
-  const W = 1.2;
+  // 영상 비율에 맞춰 plane 크기 계산 (기준 너비 0.96 = 1.2 * 0.8)
+  const W = 0.96;
   const vidW = videoEl.videoWidth  || 1920;
   const vidH = videoEl.videoHeight || 1080;
   const H    = W * (vidH / vidW);
