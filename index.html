@@ -133,7 +133,7 @@
 // ═══════════════════════════════════════════════════════════════
 const TARGETS = [
   { name: '멍송편',     videoId: 'video-0' },
-  { name: '멍치킨',     videoId: 'video-1' },
+  { name: '멍치킨',     videoId: 'video-1', whiteBg: true },
   { name: '멍샌드위치', videoId: 'video-2' },
   { name: '멍김밥',     videoId: 'video-3', offsetY: -0.03, scale: 1.0 },
 ];
@@ -177,8 +177,8 @@ function showError(err) {
   document.getElementById('error-screen').style.display = 'flex';
 }
 
-// ── Three.js 메시 생성 (검정 배경 제거 셰이더) ───────────────────
-function createVideoMesh(THREE, videoEl) {
+// ── Three.js 메시 생성 ───────────────────────────────────────────
+function createVideoMesh(THREE, videoEl, whiteBg = false) {
   const tex = new THREE.VideoTexture(videoEl);
   tex.minFilter = THREE.LinearFilter;
   tex.magFilter = THREE.LinearFilter;
@@ -186,8 +186,9 @@ function createVideoMesh(THREE, videoEl) {
   const mat = new THREE.ShaderMaterial({
     uniforms: {
       map      : { value: tex },
-      threshold: { value: 0.08 },
-      softness : { value: 0.05 },
+      threshold: { value: whiteBg ? 0.88 : 0.01 },
+      softness : { value: whiteBg ? 0.08 : 0.02 },
+      whiteBg  : { value: whiteBg ? 1.0 : 0.0 },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -199,12 +200,20 @@ function createVideoMesh(THREE, videoEl) {
       uniform sampler2D map;
       uniform float threshold;
       uniform float softness;
+      uniform float whiteBg;
       varying vec2 vUv;
       void main() {
         vec4 col = texture2D(map, vUv);
-        float maxCh = max(col.r, max(col.g, col.b));
-        if (maxCh < threshold) discard;
-        float alpha = smoothstep(threshold, threshold + softness, maxCh);
+        float alpha;
+        if (whiteBg > 0.5) {
+          float minCh = min(col.r, min(col.g, col.b));
+          if (minCh > threshold) discard;
+          alpha = 1.0 - smoothstep(threshold - softness, threshold, minCh);
+        } else {
+          float maxCh = max(col.r, max(col.g, col.b));
+          if (maxCh < threshold) discard;
+          alpha = smoothstep(threshold, threshold + softness, maxCh);
+        }
         gl_FragColor = vec4(col.rgb, col.a * alpha);
       }`,
     transparent: true,
@@ -288,7 +297,7 @@ async function startAR() {
 
       // 영상 메타데이터 로드 후 메시 생성
       const setupMesh = () => {
-        const mesh = createVideoMesh(THREE, videoEl);
+        const mesh = createVideoMesh(THREE, videoEl, !!t.whiteBg);
         if (t.offsetY) mesh.position.y += t.offsetY;
         if (t.scale)   mesh.scale.setScalar(t.scale);
         const host = document.getElementById(`video-mesh-host-${i}`);
