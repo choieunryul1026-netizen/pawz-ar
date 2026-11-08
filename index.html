@@ -221,8 +221,8 @@ function createVideoMesh(THREE, videoEl, whiteBg = false, threshold = null) {
     depthWrite : false,
   });
 
-  // 영상 비율에 맞춰 plane 크기 계산 (기준 너비 0.96 = 1.2 * 0.8)
-  const W = 0.96;
+  // 영상 비율에 맞춰 plane 크기 계산 (기준 너비 1.056 = 0.96 * 1.1)
+  const W = 1.056;
   const vidW = videoEl.videoWidth  || 1920;
   const vidH = videoEl.videoHeight || 1080;
   const H    = W * (vidH / vidW);
